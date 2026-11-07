@@ -1,0 +1,86 @@
+name: Crear y probar el instalador
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Etiqueta de la versión
+        required: true
+permissions:
+  contents: write
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 170
+    env:
+      PYTHONUTF8: '1'
+      GH_TOKEN: ${{ github.token }}
+      ENTERADO_PRUEBA: '1'
+    steps:
+      - name: Quitar Python y FFmpeg del sistema
+        shell: pwsh
+        run: |
+          foreach($comando in 'py','ffmpeg'){Get-Command $comando -All -ErrorAction SilentlyContinue | ForEach-Object {Remove-Item $_.Source -Force}}
+          $sin=($env:Path -split ';') | Where-Object {$_ -notmatch 'Python|hostedtoolcache'}
+          "Path=$($sin -join ';')" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Compilar
+        shell: pwsh
+        run: |
+          gh release download ${{ inputs.version }} -R ${{ github.repository }} -p Enterado.zip -D $env:RUNNER_TEMP
+          Expand-Archive "$env:RUNNER_TEMP\Enterado.zip" "$env:RUNNER_TEMP\fuente"
+          choco install innosetup -y --no-progress
+          $version='${{ inputs.version }}'.TrimStart('v')
+          cd "$env:RUNNER_TEMP\fuente"
+          $iscc=(Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe","$env:ProgramFiles\Inno Setup*\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          & $iscc "/DAppVersion=$version" windows\enterado.iss
+          if($LASTEXITCODE){throw 'No compiló'}
+      - name: Instalar como un usuario
+        shell: pwsh
+        run: |
+          $p=Start-Process "$env:RUNNER_TEMP\fuente\salida\Enterado-Instalador.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES',"/LOG=$env:RUNNER_TEMP\instalador.log" -Wait -PassThru
+          "Instalador: $($p.ExitCode)"
+          $e="$env:LOCALAPPDATA\Enterado"
+          foreach($f in '.venv\Scripts\pythonw.exe','data\herramientas\ffmpeg\ffmpeg.exe','data\voz-local\venv-voz\Scripts\python.exe','windows\abrir.pyw'){if(-not(Test-Path "$e\$f")){throw "Falta $f"}}
+          if(-not(Test-Path "$([Environment]::GetFolderPath('Desktop'))\Enterado.lnk")){throw 'Falta el ícono'}
+          if(-not(Get-ScheduledTask -TaskName Enterado)){throw 'Falta la tarea'}
+          & "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe" list
+      - name: Pruebas automáticas
+        if: always()
+        shell: pwsh
+        run: |
+          cd "$env:LOCALAPPDATA\Enterado"
+          $env:ENTERADO_DATA="$env:RUNNER_TEMP\datos-prueba"
+          .venv\Scripts\python.exe -X utf8 -m unittest discover -s tests
+      - name: El ícono enciende el servidor
+        if: always()
+        shell: pwsh
+        run: |
+          cd "$env:LOCALAPPDATA\Enterado"
+          Start-Process .venv\Scripts\pythonw.exe -ArgumentList 'windows\abrir.pyw' -WorkingDirectory $PWD
+          $ok=$false
+          foreach($i in 1..60){try{$estado=Invoke-RestMethod http://127.0.0.1:8775/api/state -TimeoutSec 3;$ok=$true;break}catch{Start-Sleep 2}}
+          if(-not $ok){throw 'No arrancó'}
+          $estado.update | ConvertTo-Json
+          cmd /c Detener-Enterado.cmd
+          Start-Sleep 6
+          $sigue=$true
+          try{Invoke-RestMethod http://127.0.0.1:8775/api/state -TimeoutSec 3 | Out-Null}catch{$sigue=$false}
+          if($sigue){throw 'Sigue encendido'}
+          'Apagado'
+      - name: Video completo
+        if: always()
+        shell: pwsh
+        run: |
+          cd "$env:LOCALAPPDATA\Enterado"
+          $env:Path="$PWD\data\herramientas\ffmpeg;$env:Path"
+          .venv\Scripts\python.exe -X utf8 windows\prueba_video.py "$env:RUNNER_TEMP\prueba-windows.mp4"
+      - name: Publicar el instalador
+        shell: pwsh
+        run: gh release upload ${{ inputs.version }} "$env:RUNNER_TEMP\fuente\salida\Enterado-Instalador.exe" -R ${{ github.repository }} --clobber
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: prueba-windows
+          path: |
+            ${{ runner.temp }}/prueba-windows.mp4
+            ${{ runner.temp }}/instalador.log
+          if-no-files-found: warn
