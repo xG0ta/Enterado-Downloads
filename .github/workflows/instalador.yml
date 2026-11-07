@@ -42,11 +42,16 @@ jobs:
           if(-not $p.WaitForExit(3000000)){throw 'El instalador se atoró'}
           "Instalador: $($p.ExitCode)"
           Get-Content "$env:TEMP\enterado-instalacion.log" -ErrorAction SilentlyContinue
+          Get-PSDrive C | Format-Table Used,Free
+          Get-Content "$env:LOCALAPPDATA\Ollama\server.log" -Tail 30 -ErrorAction SilentlyContinue
+          if($p.ExitCode -ne 0){throw 'El instalador falló'}
           $e="$env:LOCALAPPDATA\Enterado"
           foreach($f in '.venv\Scripts\pythonw.exe','data\herramientas\ffmpeg\ffmpeg.exe','data\voz-local\venv-voz\Scripts\python.exe','windows\abrir.pyw'){if(-not(Test-Path "$e\$f")){throw "Falta $f"}}
           if(-not(Test-Path "$([Environment]::GetFolderPath('Desktop'))\Enterado.lnk")){throw 'Falta el ícono'}
           if(-not(Get-ScheduledTask -TaskName Enterado)){throw 'Falta la tarea'}
-          & "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe" list
+          $modelos=& "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe" list | Out-String
+          $modelos
+          foreach($m in 'qwen3:4b-instruct','qwen3-vl:2b-instruct'){if($modelos -notmatch [regex]::Escape($m)){throw "Falta el modelo $m"}}
       - name: Pruebas automáticas
         if: always()
         shell: pwsh
