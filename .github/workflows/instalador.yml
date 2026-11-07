@@ -53,6 +53,8 @@ jobs:
         run: |
           cd "$env:LOCALAPPDATA\Enterado"
           $env:ENTERADO_DATA="$env:RUNNER_TEMP\datos-prueba"
+          # Quien abre la app es guardian.py, que añade este FFmpeg; aquí se hace a mano.
+          $env:Path="$PWD\data\herramientas\ffmpeg;$env:Path"
           .venv\Scripts\python.exe -X utf8 -m unittest discover -s tests
       - name: El ícono enciende el servidor
         if: always()
