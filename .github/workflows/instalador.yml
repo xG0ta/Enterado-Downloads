@@ -34,7 +34,7 @@ jobs:
           & $iscc "/DAppVersion=$version" windows\enterado.iss
           if($LASTEXITCODE){throw 'No compiló'}
       - name: Instalar como un usuario
-        shell: pwsh
+        shell: powershell
         run: |
           $p=Start-Process "$env:RUNNER_TEMP\fuente\salida\Enterado-Instalador.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES',"/LOG=$env:RUNNER_TEMP\instalador.log" -Wait -PassThru
           "Instalador: $($p.ExitCode)"
