@@ -28,7 +28,8 @@ jobs:
       - name: Instalador
         shell: powershell
         run: |
-          py -0p
+          Get-Command py -All -ErrorAction SilentlyContinue | ForEach-Object {Remove-Item $_.Source -Force}
+          if(Get-Command py -ErrorAction SilentlyContinue){throw 'py sigue'}
           & "$env:RUNNER_TEMP\zip\windows\preparar.ps1" -Prueba -Destino "$env:RUNNER_TEMP\Enterado"
       - name: Pruebas automáticas
         if: always()
