@@ -38,6 +38,7 @@ jobs:
         run: |
           $p=Start-Process "$env:RUNNER_TEMP\fuente\salida\Enterado-Instalador.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES',"/LOG=$env:RUNNER_TEMP\instalador.log" -Wait -PassThru
           "Instalador: $($p.ExitCode)"
+          Get-Content "$env:TEMP\enterado-instalacion.log" -ErrorAction SilentlyContinue
           $e="$env:LOCALAPPDATA\Enterado"
           foreach($f in '.venv\Scripts\pythonw.exe','data\herramientas\ffmpeg\ffmpeg.exe','data\voz-local\venv-voz\Scripts\python.exe','windows\abrir.pyw'){if(-not(Test-Path "$e\$f")){throw "Falta $f"}}
           if(-not(Test-Path "$([Environment]::GetFolderPath('Desktop'))\Enterado.lnk")){throw 'Falta el ícono'}
