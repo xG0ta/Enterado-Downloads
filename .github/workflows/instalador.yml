@@ -35,8 +35,11 @@ jobs:
           if($LASTEXITCODE){throw 'No compiló'}
       - name: Instalar como un usuario
         shell: powershell
+        timeout-minutes: 60
         run: |
-          $p=Start-Process "$env:RUNNER_TEMP\fuente\salida\Enterado-Instalador.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES',"/LOG=$env:RUNNER_TEMP\instalador.log" -Wait -PassThru
+          $p=Start-Process "$env:RUNNER_TEMP\fuente\salida\Enterado-Instalador.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES',"/LOG=$env:RUNNER_TEMP\instalador.log" -PassThru
+          $null=$p.Handle
+          if(-not $p.WaitForExit(3000000)){throw 'El instalador se atoró'}
           "Instalador: $($p.ExitCode)"
           Get-Content "$env:TEMP\enterado-instalacion.log" -ErrorAction SilentlyContinue
           $e="$env:LOCALAPPDATA\Enterado"
